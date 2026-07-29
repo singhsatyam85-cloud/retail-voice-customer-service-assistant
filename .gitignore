@@ -1,0 +1,70 @@
+# Private configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Python virtual environment
+.venv/
+venv/
+env/
+
+# Python temporary and generated files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+
+# Python testing files
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# Voice recordings and generated transcripts
+recordings/
+transcripts/
+
+# Application logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# Node.js and React dependencies
+node_modules/
+
+# Frontend generated files
+dist/
+build/
+.vite/
+
+# Package-manager logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local AI model and generated output files
+models/
+artifacts/
+*.bin
+*.gguf
+
+# Visual Studio Code local settings
+.vscode/
+
+# Other IDE settings
+.idea/
+
+# Windows-generated files
+Thumbs.db
+desktop.ini
+
+# macOS-generated files
+.DS_Store
