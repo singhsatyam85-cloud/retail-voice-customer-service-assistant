@@ -35,6 +35,7 @@ export interface VoiceSessionAudioResult {
   transcript: string | null;
   detected_language: string | null;
   customer: CustomerSummary;
+  intent_category: string | null;
 }
 
 export class VoiceSupportApiError extends Error {
@@ -88,7 +89,9 @@ export async function uploadVoiceSessionAudio(
 
   const response = await fetch(`${API_BASE_URL}/api/v1/voice-support/sessions/${sessionId}/audio`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: {
+      ...authHeaders(),
+    },
     body: formData,
   });
 
@@ -97,4 +100,44 @@ export async function uploadVoiceSessionAudio(
   }
 
   return (await response.json()) as VoiceSessionAudioResult;
+}
+
+export interface CreateVoiceCaseRequest {
+  category: string;
+  order_id: string | null;
+  summary: string;
+  idempotency_key: string;
+}
+
+export interface SupportCase {
+  case_id: string;
+  call_id: string | null;
+  customer_id: string;
+  order_id: string | null;
+  category: string;
+  status: string;
+  summary: string;
+  requires_human_review: boolean;
+  created_at: string;
+  voice_session_id: string | null;
+}
+
+export async function createVoiceSupportCase(
+  sessionId: string,
+  payload: CreateVoiceCaseRequest,
+): Promise<SupportCase> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/voice-support/sessions/${sessionId}/cases`, {
+    method: "POST",
+    headers: {
+      ...authHeaders(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new VoiceSupportApiError(response.status, await readErrorMessage(response));
+  }
+
+  return (await response.json()) as SupportCase;
 }

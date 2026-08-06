@@ -4,8 +4,11 @@ import {
   startVoiceSession,
   uploadVoiceSessionAudio,
   VoiceSupportApiError,
+  createVoiceSupportCase,
   type RecentOrder,
+  type SupportCase,
 } from "../services/voiceSupportApi";
+import { VoiceOrbDNA } from "./VoiceOrbDNA";
 import "./VoiceSupportPanel.css";
 
 type PanelPhase =
@@ -16,6 +19,8 @@ type PanelPhase =
   | "stopping"
   | "uploading"
   | "transcribed"
+  | "submitting"
+  | "submitted"
   | "permission-denied"
   | "unsupported-browser"
   | "backend-error";
@@ -39,8 +44,14 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<string | null>(null);
+  const [intentCategory, setIntentCategory] = useState<string | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorContext, setErrorContext] = useState<ErrorContext>(null);
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
+  const [createdCase, setCreatedCase] = useState<SupportCase | null>(null);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [retryToken, setRetryToken] = useState(0);
 
@@ -60,6 +71,12 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
         setFirstName(session.customer.full_name.split(" ")[0] || session.customer.full_name);
         setRecentOrders(session.recent_orders);
         setSessionId(session.session_id);
+        setTranscript(null);
+        setIntentCategory(null);
+        setSelectedOrderId(null);
+        setIdempotencyKey(null);
+        setSubmissionError(null);
+        setCreatedCase(null);
         setPhase("ready");
       })
       .catch((error: unknown) => {
@@ -131,6 +148,15 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
     try {
       const result = await uploadVoiceSessionAudio(sessionId, blob);
       setTranscript(result.transcript);
+      setIntentCategory(result.intent_category);
+      if (recentOrders.length === 1 && result.intent_category !== "needs_clarification") {
+        setSelectedOrderId(recentOrders[0].order_id);
+      } else {
+        setSelectedOrderId(null);
+      }
+      if (result.intent_category !== "needs_clarification") {
+        setIdempotencyKey(self.crypto.randomUUID());
+      }
       setPhase("transcribed");
     } catch (error) {
       setErrorMessage(describeError(error));
@@ -141,8 +167,43 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
 
   function handleRecordAgain() {
     setTranscript(null);
+    setIntentCategory(null);
+    setSelectedOrderId(null);
+    setIdempotencyKey(null);
+    setSubmissionError(null);
+    setCreatedCase(null);
     setErrorMessage(null);
     setPhase("ready");
+  }
+
+  async function handleConfirmCase() {
+    if (!sessionId || !intentCategory || !idempotencyKey) return;
+
+    const isHumanAgent = intentCategory === "human_agent_request";
+    const orderId = selectedOrderId === "none" ? null : selectedOrderId;
+
+    if (!isHumanAgent && !orderId) {
+      setSubmissionError("An order must be selected for this request.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmissionError(null);
+
+    try {
+      const caseResult = await createVoiceSupportCase(sessionId, {
+        category: intentCategory,
+        order_id: orderId,
+        summary: transcript || "",
+        idempotency_key: idempotencyKey,
+      });
+      setCreatedCase(caseResult);
+      setPhase("submitted");
+    } catch (error: unknown) {
+      setSubmissionError(describeError(error));
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function handleRetry() {
@@ -156,6 +217,15 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
   }
 
   const showOrders = phase !== "opening" && phase !== "backend-error";
+
+  let orbState: "idle" | "listening" | "speaking" | "processing" = "idle";
+  if (phase === "recording") {
+    orbState = "listening";
+  } else if (phase === "uploading" || phase === "stopping" || phase === "submitting") {
+    orbState = "processing";
+  } else if (phase === "transcribed" || phase === "submitted") {
+    orbState = "speaking";
+  }
 
   return (
     <div className="voice-support-panel" role="dialog" aria-modal="true" aria-label="AI Voice Support">
@@ -173,6 +243,8 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
 
       <div className="voice-support-panel__body">
         {phase === "opening" && <p role="status">Starting your support session…</p>}
+
+        {showOrders && <VoiceOrbDNA state={orbState} />}
 
         {showOrders && firstName && (
           <p className="voice-support-panel__greeting">Hi {firstName}, how can we help?</p>
@@ -222,14 +294,82 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
           <div className="voice-support-panel__transcript">
             <h3>Transcript</h3>
             <p>{transcript}</p>
+
+            {intentCategory === "needs_clarification" ? (
+              <div className="voice-support-panel__draft">
+                <p>We're not sure how to classify this request. Please provide more details or ask to speak to an agent.</p>
+              </div>
+            ) : (
+              <div className="voice-support-panel__draft">
+                <h3>Case Draft</h3>
+                <p><strong>Category:</strong> {intentCategory}</p>
+                <p><strong>Summary:</strong> {transcript}</p>
+
+                <div className="voice-support-panel__order-selection">
+                  <label htmlFor="order-select"><strong>Order:</strong></label>
+                  <select
+                    id="order-select"
+                    value={selectedOrderId || ""}
+                    onChange={(e) => setSelectedOrderId(e.target.value)}
+                  >
+                    <option value="">-- Select an order --</option>
+                    {recentOrders.map(o => (
+                      <option key={o.order_id} value={o.order_id}>{o.order_id}</option>
+                    ))}
+                    {intentCategory === "human_agent_request" && (
+                      <option value="none">No order (General question)</option>
+                    )}
+                  </select>
+                </div>
+
+                <p className="voice-support-panel__notice">
+                  <em>Note: Returns, refunds, and cancellations are subject to human review.</em>
+                </p>
+              </div>
+            )}
+
+            {submissionError && (
+              <div className="voice-support-panel__error" role="alert">
+                <p>{submissionError}</p>
+              </div>
+            )}
+
             <div className="voice-support-panel__transcript-actions">
-              <button type="button" onClick={handleRecordAgain}>
+              <button type="button" onClick={handleRecordAgain} disabled={isSubmitting}>
                 Record again
               </button>
-              <button type="button" onClick={onClose}>
-                Keep transcript and close
+              {intentCategory !== "needs_clarification" && (
+                <button
+                  type="button"
+                  disabled={isSubmitting || (!selectedOrderId && intentCategory !== "human_agent_request")}
+                  onClick={handleConfirmCase}
+                >
+                  {isSubmitting ? "Confirming..." : "Confirm and Create Case"}
+                </button>
+              )}
+              <button type="button" onClick={onClose} disabled={isSubmitting}>
+                Cancel
               </button>
             </div>
+          </div>
+        )}
+
+        {phase === "submitted" && createdCase && (
+          <div className="voice-support-panel__submitted">
+            <h3>Case Created Successfully</h3>
+            <p><strong>Case ID:</strong> {createdCase.case_id}</p>
+            <p><strong>Status:</strong> {createdCase.status}</p>
+            <p><strong>Category:</strong> {createdCase.category}</p>
+            {createdCase.order_id && createdCase.order_id !== "none" && (
+              <p><strong>Order ID:</strong> {createdCase.order_id}</p>
+            )}
+            <p><strong>Summary:</strong> {createdCase.summary}</p>
+            <p className="voice-support-panel__notice">
+              <em>Note: Returns, refunds, and cancellations are subject to human review.</em>
+            </p>
+            <button type="button" className="voice-support-panel__action" onClick={onClose}>
+              Close
+            </button>
           </div>
         )}
 

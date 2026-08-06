@@ -94,7 +94,7 @@ class CreateCaseRequest(BaseModel):
 
 class SupportCaseOut(BaseModel):
     case_id: str
-    call_id: str
+    call_id: Optional[str] = None
     customer_id: str
     order_id: Optional[str]
     category: CaseCategory
@@ -102,6 +102,7 @@ class SupportCaseOut(BaseModel):
     summary: str
     requires_human_review: bool
     created_at: datetime
+    voice_session_id: Optional[str] = None
 
 
 class RecentOrderItemOut(BaseModel):
@@ -131,3 +132,8 @@ class VoiceSessionAudioResponse(BaseModel):
     transcript: Optional[str]
     detected_language: Optional[str]
     customer: CustomerOut
+    intent_category: Optional[str] = None
+
+
+class CreateVoiceCaseRequest(CreateCaseRequest):
+    idempotency_key: str

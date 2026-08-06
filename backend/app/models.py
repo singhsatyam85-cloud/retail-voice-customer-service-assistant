@@ -247,10 +247,22 @@ class SupportCase(Base):
         nullable=True,
     )
 
-    call_id: Mapped[str] = mapped_column(
+    call_id: Mapped[Optional[str]] = mapped_column(
         ForeignKey("call_records.call_id"),
         index=True,
-        nullable=False,
+        nullable=True,
+    )
+
+    voice_session_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("voice_support_sessions.session_id"),
+        index=True,
+        nullable=True,
+    )
+
+    idempotency_key: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        unique=True,
+        nullable=True,
     )
 
     category: Mapped[str] = mapped_column(
@@ -296,7 +308,11 @@ class SupportCase(Base):
         back_populates="support_cases",
     )
 
-    call: Mapped[CallRecord] = relationship(
+    call: Mapped[Optional[CallRecord]] = relationship(
+        back_populates="support_cases",
+    )
+
+    voice_session: Mapped[Optional[VoiceSupportSession]] = relationship(
         back_populates="support_cases",
     )
 
@@ -370,4 +386,8 @@ class VoiceSupportSession(Base):
 
     customer: Mapped[Customer] = relationship(
         back_populates="voice_support_sessions",
+    )
+
+    support_cases: Mapped[list[SupportCase]] = relationship(
+        back_populates="voice_session",
     )

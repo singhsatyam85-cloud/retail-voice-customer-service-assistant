@@ -18,8 +18,11 @@ from backend.app.schemas import (
     RecentOrderOut,
     VoiceSessionAudioResponse,
     VoiceSessionStartResponse,
+    CreateVoiceCaseRequest,
+    SupportCaseOut,
 )
 from backend.app.services.demo_auth import get_authenticated_customer
+from backend.app.services.classification import classify_transcript
 from backend.app.services.speech_to_text.base import SpeechToTextProvider, SpeechToTextUnavailableError
 from backend.app.services.speech_to_text.factory import get_speech_to_text_provider
 from backend.app.services.voice_support import (
@@ -30,6 +33,11 @@ from backend.app.services.voice_support import (
     get_owned_session,
     start_voice_session,
     transcribe_uploaded_audio,
+)
+from backend.app.services.case_creation import (
+    create_voice_support_case,
+    OrderNotAvailableError,
+    VoiceSessionNotFoundError as CaseVoiceSessionNotFoundError,
 )
 
 router = APIRouter(prefix="/api/v1/voice-support", tags=["voice-support"])
@@ -94,10 +102,48 @@ async def upload_audio_endpoint(
     except SpeechToTextUnavailableError as exc:
         raise HTTPException(status_code=503, detail="Speech-to-text service is unavailable.") from exc
 
+    intent_category = classify_transcript(session.transcript) if session.transcript else None
+
     return VoiceSessionAudioResponse(
         session_id=session.session_id,
         status=session.status,
         transcript=session.transcript,
         detected_language=session.detected_language,
         customer=CustomerOut(customer_id=customer.customer_id, full_name=customer.full_name),
+        intent_category=intent_category.value if intent_category else None,
+    )
+
+
+@router.post(
+    "/sessions/{session_id}/cases",
+    response_model=SupportCaseOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_voice_case_endpoint(
+    session_id: str,
+    payload: CreateVoiceCaseRequest,
+    customer: Customer = Depends(get_authenticated_customer),
+    db: Session = Depends(get_db),
+) -> SupportCaseOut:
+    try:
+        support_case = create_voice_support_case(db, session_id, customer, payload)
+    except CaseVoiceSessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Voice support session not found.") from exc
+    except OrderNotAvailableError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="Order not found for this verified call.",
+        ) from exc
+
+    return SupportCaseOut(
+        case_id=support_case.case_id,
+        call_id=support_case.call_id,
+        customer_id=support_case.customer_id,
+        order_id=support_case.order_id,
+        category=support_case.category,
+        status=support_case.status,
+        summary=support_case.summary,
+        requires_human_review=support_case.requires_human_review,
+        created_at=support_case.created_at,
+        voice_session_id=support_case.voice_session_id,
     )

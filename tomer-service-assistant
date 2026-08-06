@@ -1,0 +1,71 @@
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/routers/voice_support.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/schemas.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/services/case_creation.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/services/speech_to_text/mock_provider.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/package-lock.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/components/VoiceSupportPanel.test.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/components/VoiceSupportPanel.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/services/voiceSupportApi.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/test/setup.ts', LF will be replaced by CRLF the next time Git touches it
+frontend/src/components/VoiceSupportPanel.test.tsx:162: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.test.tsx:183: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.test.tsx:193: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.test.tsx:203: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.test.tsx:206: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.test.tsx:209: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.test.tsx:233: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.test.tsx:236: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.test.tsx:240: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.test.tsx:284: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.test.tsx:286: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.test.tsx:321: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.test.tsx:347: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.test.tsx:353: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.test.tsx:406: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.test.tsx:454: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.test.tsx:464: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.tsx:181: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.tsx:184: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.tsx:189: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.tsx:192: trailing whitespace.
+[32m+[m[41m    [m
+frontend/src/components/VoiceSupportPanel.tsx:297: trailing whitespace.
+[32m+[m[41m            [m
+frontend/src/components/VoiceSupportPanel.tsx:307: trailing whitespace.
+[32m+[m[41m                [m
+frontend/src/components/VoiceSupportPanel.tsx:310: trailing whitespace.
+[32m+[m[32m                  <select[m[41m [m
+frontend/src/components/VoiceSupportPanel.tsx:311: trailing whitespace.
+[32m+[m[32m                    id="order-select"[m[41m [m
+frontend/src/components/VoiceSupportPanel.tsx:312: trailing whitespace.
+[32m+[m[32m                    value={selectedOrderId || ""}[m[41m [m
+frontend/src/components/VoiceSupportPanel.tsx:324: trailing whitespace.
+[32m+[m[41m                [m
+frontend/src/components/VoiceSupportPanel.tsx:342: trailing whitespace.
+[32m+[m[32m                <button[m[41m [m
+frontend/src/components/VoiceSupportPanel.tsx:343: trailing whitespace.
+[32m+[m[32m                  type="button"[m[41m [m
+frontend/src/components/VoiceSupportPanel.tsx:344: trailing whitespace.
+[32m+[m[32m                  disabled={isSubmitting || (!selectedOrderId && intentCategory !== "human_agent_request")}[m[41m [m

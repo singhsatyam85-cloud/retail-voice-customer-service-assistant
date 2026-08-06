@@ -1,0 +1,27 @@
+.voice-orb-dna-container {
+  position: relative;
+  margin: 15px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.voice-orb-dna__glow {
+  position: absolute;
+  width: 75%;
+  height: 75%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--glow-color) 0%, rgba(0, 0, 0, 0) 70%);
+  filter: blur(8px);
+  transition: background 0.4s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.voice-orb-dna-container canvas {
+  position: relative;
+  z-index: 1;
+  width: 100% !important;
+  height: 100% !important;
+}

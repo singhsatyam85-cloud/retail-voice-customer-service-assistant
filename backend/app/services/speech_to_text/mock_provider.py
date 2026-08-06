@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from backend.app.services.speech_to_text.base import SpeechToTextProvider, TranscriptionResult
 
-_CANNED_TRANSCRIPT = "My wireless headphones have not arrived and the order shows delayed."
+_CANNED_TRANSCRIPT = "My order is late and delayed."
 
 
 class MockSpeechToTextProvider(SpeechToTextProvider):
