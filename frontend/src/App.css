@@ -1,0 +1,35 @@
+.demo-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.demo-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.demo-page__brand {
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.demo-page__account {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.demo-page__main {
+  flex: 1;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 32px 24px 96px;
+  text-align: left;
+}
+
+.demo-page__hint {
+  color: var(--text);
+}

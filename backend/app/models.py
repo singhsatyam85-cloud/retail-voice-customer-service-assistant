@@ -63,6 +63,10 @@ class Customer(Base):
         back_populates="customer",
     )
 
+    voice_support_sessions: Mapped[list[VoiceSupportSession]] = relationship(
+        back_populates="customer",
+    )
+
 
 class Order(Base):
     __tablename__ = "orders"
@@ -294,4 +298,76 @@ class SupportCase(Base):
 
     call: Mapped[CallRecord] = relationship(
         back_populates="support_cases",
+    )
+
+
+class VoiceSupportSession(Base):
+    """One in-app voice-support session for an authenticated customer.
+
+    Deliberately separate from CallRecord: a CallRecord represents a
+    telephone verification attempt (may have no customer at all), while a
+    voice-support session only ever exists for an already-authenticated
+    customer and never stores raw audio.
+    """
+
+    __tablename__ = "voice_support_sessions"
+
+    session_id: Mapped[str] = mapped_column(
+        String(50),
+        primary_key=True,
+    )
+
+    customer_id: Mapped[str] = mapped_column(
+        ForeignKey("customers.customer_id"),
+        index=True,
+        nullable=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(30),
+        default="started",
+        nullable=False,
+    )
+
+    transcript: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    detected_language: Mapped[Optional[str]] = mapped_column(
+        String(10),
+        nullable=True,
+    )
+
+    # Audit metadata only -- never used to build a filesystem path.
+    original_filename: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    audio_content_type: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    customer: Mapped[Customer] = relationship(
+        back_populates="voice_support_sessions",
     )

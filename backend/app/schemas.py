@@ -102,3 +102,32 @@ class SupportCaseOut(BaseModel):
     summary: str
     requires_human_review: bool
     created_at: datetime
+
+
+class RecentOrderItemOut(BaseModel):
+    product_name: str
+    quantity: int
+
+
+class RecentOrderOut(BaseModel):
+    order_id: str
+    status: str
+    total_amount: str
+    currency_code: str
+    items: list[RecentOrderItemOut]
+
+
+class VoiceSessionStartResponse(BaseModel):
+    session_id: str
+    status: str
+    customer: CustomerOut
+    recent_orders: list[RecentOrderOut]
+    created_at: datetime
+
+
+class VoiceSessionAudioResponse(BaseModel):
+    session_id: str
+    status: str
+    transcript: Optional[str]
+    detected_language: Optional[str]
+    customer: CustomerOut

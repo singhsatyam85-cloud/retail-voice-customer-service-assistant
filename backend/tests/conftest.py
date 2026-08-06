@@ -20,6 +20,8 @@ from sqlalchemy.orm import sessionmaker
 from backend.app.database import Base, enable_sqlite_foreign_keys, get_db
 from backend.app.main import app
 from backend.app.models import CallRecord, Customer, Order, OrderItem
+from backend.app.services.speech_to_text.factory import get_speech_to_text_provider
+from backend.app.services.speech_to_text.mock_provider import MockSpeechToTextProvider
 
 
 @pytest.fixture()
@@ -181,6 +183,8 @@ def client(test_session_factory, seeded_data):
             db.close()
 
     app.dependency_overrides[get_db] = _get_test_db
+    # Tests must never depend on a real speech model being installed.
+    app.dependency_overrides[get_speech_to_text_provider] = lambda: MockSpeechToTextProvider()
     try:
         yield TestClient(app)
     finally:

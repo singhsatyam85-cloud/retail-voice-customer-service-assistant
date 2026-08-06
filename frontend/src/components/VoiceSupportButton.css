@@ -1,0 +1,43 @@
+.voice-support-button {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1000;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border: 1px solid #1f2933;
+  border-radius: 999px;
+  background: #1f2933;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.25);
+}
+
+.voice-support-button:hover {
+  background: #111827;
+}
+
+.voice-support-button:focus-visible {
+  outline: 3px solid #60a5fa;
+  outline-offset: 2px;
+}
+
+.voice-support-button__icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .voice-support-button {
+    right: 12px;
+    bottom: 12px;
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+}
