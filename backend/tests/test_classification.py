@@ -39,6 +39,35 @@ def test_single_intent_classification(transcript, expected_category):
     assert classify_transcript(transcript) == expected_category
 
 
+@pytest.mark.parametrize(
+    "transcript, expected_category",
+    [
+        # Contractions (common in speech / Whisper output)
+        ("Where's my order?", IntentCategory.ORDER_STATUS),
+        ("It's been delayed", IntentCategory.DELAYED_DELIVERY),
+        ("I didn't get my package", IntentCategory.MISSING_DELIVERY),
+        ("It's broken", IntentCategory.DAMAGED_PRODUCT),
+        # Broader keyword variants
+        ("Track my order", IntentCategory.ORDER_STATUS),
+        ("I want to track my delivery", IntentCategory.ORDER_STATUS),
+        ("Tracking my order please", IntentCategory.ORDER_STATUS),
+        ("My delivery is late", IntentCategory.DELAYED_DELIVERY),
+        ("I've been waiting forever", IntentCategory.DELAYED_DELIVERY),
+        ("My package is missing", IntentCategory.MISSING_DELIVERY),
+        ("I never received it", IntentCategory.MISSING_DELIVERY),
+        ("The item is cracked", IntentCategory.DAMAGED_PRODUCT),
+        ("I want my money back", IntentCategory.RETURN_REQUEST),
+        ("I want to send it back", IntentCategory.RETURN_REQUEST),
+        ("I received the wrong item", IntentCategory.WRONG_ITEM),
+        ("This is the wrong one", IntentCategory.WRONG_ITEM),
+        ("Transfer me to a real person", IntentCategory.HUMAN_AGENT_REQUEST),
+        ("I want a live agent", IntentCategory.HUMAN_AGENT_REQUEST),
+    ],
+)
+def test_speech_variant_classification(transcript, expected_category):
+    assert classify_transcript(transcript) == expected_category
+
+
 def test_conflicting_intents_return_needs_clarification():
     # Contains both "cancel" and "return"
     assert classify_transcript("I want to cancel or return my order") == IntentCategory.NEEDS_CLARIFICATION

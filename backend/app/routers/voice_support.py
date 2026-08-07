@@ -7,11 +7,15 @@ request body.
 
 from __future__ import annotations
 
+import logging
+import time
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from backend.app.config import get_settings
 from backend.app.database import get_db
-from backend.app.models import Customer
+from backend.app.models import Customer, Order
 from backend.app.schemas import (
     CustomerOut,
     RecentOrderItemOut,
@@ -20,6 +24,7 @@ from backend.app.schemas import (
     VoiceSessionStartResponse,
     CreateVoiceCaseRequest,
     SupportCaseOut,
+    ConversationTurnOut,
 )
 from backend.app.services.demo_auth import get_authenticated_customer
 from backend.app.services.classification import classify_transcript
@@ -39,8 +44,17 @@ from backend.app.services.case_creation import (
     OrderNotAvailableError,
     VoiceSessionNotFoundError as CaseVoiceSessionNotFoundError,
 )
+from backend.app.services.ollama_service import (
+    generate_ollama_response,
+    generate_fallback_response,
+    OllamaServiceError,
+)
+from backend.app.services.session_history import get_session_history, add_session_turn
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/api/v1/voice-support", tags=["voice-support"])
+logger = logging.getLogger("voice_support")
 
 
 @router.post(
@@ -91,6 +105,7 @@ async def upload_audio_endpoint(
     except VoiceSessionNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Voice support session not found.") from exc
 
+    _t0_stt = time.perf_counter()
     try:
         session = await transcribe_uploaded_audio(db, session, audio, provider)
     except EmptyAudioError as exc:
@@ -101,8 +116,66 @@ async def upload_audio_endpoint(
         raise HTTPException(status_code=413, detail="Audio exceeds the 10 MB limit.") from exc
     except SpeechToTextUnavailableError as exc:
         raise HTTPException(status_code=503, detail="Speech-to-text service is unavailable.") from exc
+    stt_elapsed = time.perf_counter() - _t0_stt
 
-    intent_category = classify_transcript(session.transcript) if session.transcript else None
+    transcript_text = session.transcript or ""
+    logger.info("STT transcript: %r (lang=%s)", transcript_text, session.detected_language)
+    history = get_session_history(session.session_id)
+    if transcript_text:
+        add_session_turn(session.session_id, "user", transcript_text)
+
+    recent_orders = list(
+        db.scalars(
+            select(Order)
+            .where(Order.customer_id == customer.customer_id)
+            .options(selectinload(Order.items))
+            .order_by(Order.placed_at.desc())
+            .limit(5)
+        ).all()
+    )
+
+    settings = get_settings()
+    ollama_source = "ollama"
+
+    _t0_ollama = time.perf_counter()
+    try:
+        ollama_res = generate_ollama_response(
+            customer=customer,
+            recent_orders=recent_orders,
+            user_transcript=transcript_text,
+            conversation_history=history,
+            settings=settings,
+        )
+    except OllamaServiceError as exc:
+        logger.warning("Ollama failed (%s), using deterministic fallback.", exc)
+        ollama_source = "fallback"
+        ollama_res = generate_fallback_response(
+            customer=customer,
+            recent_orders=recent_orders,
+            user_transcript=transcript_text,
+            conversation_history=history,
+        )
+    ollama_elapsed = time.perf_counter() - _t0_ollama
+    logger.info(
+        "Classification [%s]: intent=%s, reply=%r (%.2fs)",
+        ollama_source, ollama_res.intent, ollama_res.reply[:80], ollama_elapsed,
+    )
+
+    if ollama_res.reply:
+        add_session_turn(session.session_id, "assistant", ollama_res.reply)
+
+    history_out = [
+        ConversationTurnOut(role=t["role"], content=t["content"])
+        for t in get_session_history(session.session_id)
+    ]
+
+    suggested_order_id = recent_orders[0].order_id if len(recent_orders) == 1 else None
+
+    total_elapsed = stt_elapsed + ollama_elapsed
+    logger.info(
+        "Request timing: stt=%.2fs, ollama=%.2fs, total=%.2fs",
+        stt_elapsed, ollama_elapsed, total_elapsed,
+    )
 
     return VoiceSessionAudioResponse(
         session_id=session.session_id,
@@ -110,7 +183,12 @@ async def upload_audio_endpoint(
         transcript=session.transcript,
         detected_language=session.detected_language,
         customer=CustomerOut(customer_id=customer.customer_id, full_name=customer.full_name),
-        intent_category=intent_category.value if intent_category else None,
+        intent_category=ollama_res.intent,
+        assistant_reply=ollama_res.reply,
+        conversation_history=history_out,
+        requires_order=ollama_res.requires_order,
+        needs_clarification=ollama_res.needs_clarification,
+        suggested_order_id=suggested_order_id,
     )
 
 

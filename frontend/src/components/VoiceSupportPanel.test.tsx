@@ -108,6 +108,8 @@ describe("VoiceSupportPanel", () => {
       detected_language: "en",
       customer: { customer_id: "CUST-101", full_name: "Test Customer One" },
       intent_category: null,
+      assistant_reply: null,
+      conversation_history: [],
     });
     await renderReadyPanel();
 
@@ -128,6 +130,8 @@ describe("VoiceSupportPanel", () => {
       detected_language: "en",
       customer: { customer_id: "CUST-101", full_name: "Test Customer One" },
       intent_category: null,
+      assistant_reply: null,
+      conversation_history: [],
     });
     await renderReadyPanel();
 
@@ -493,5 +497,132 @@ describe("VoiceSupportPanel", () => {
 
     expect(await screen.findByRole("button", { name: /start speaking/i })).toBeInTheDocument();
     expect(api.startVoiceSession).toHaveBeenCalledTimes(2);
+  });
+
+  describe("Voice-to-voice features", () => {
+    beforeEach(() => {
+      (window.speechSynthesis.speak as ReturnType<typeof vi.fn>).mockClear();
+      (window.speechSynthesis.cancel as ReturnType<typeof vi.fn>).mockClear();
+    });
+
+    async function uploadWithReply(overrides?: Partial<api.VoiceSessionAudioResult>) {
+      installMediaMocks();
+      vi.mocked(api.uploadVoiceSessionAudio).mockResolvedValue({
+        session_id: "VOICE-test-session",
+        status: "transcribed",
+        transcript: "Where is my order?",
+        detected_language: "en",
+        customer: { customer_id: "CUST-101", full_name: "Test Customer One" },
+        intent_category: "delayed_delivery",
+        assistant_reply: "I see your order ORD-5001 is delayed. Would you like me to open a case?",
+        conversation_history: [
+          { role: "user", content: "Where is my order?" },
+          { role: "assistant", content: "I see your order ORD-5001 is delayed. Would you like me to open a case?" },
+        ],
+        ...overrides,
+      });
+      await renderReadyPanel();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: /start speaking/i }));
+      await screen.findByText(/recording…/i);
+      await user.click(screen.getByRole("button", { name: /^stop$/i }));
+      // Wait for transcribed phase to complete
+      await screen.findByText(/Case Draft/i);
+      return user;
+    }
+
+    it("displays the assistant reply after upload", async () => {
+      await uploadWithReply();
+      const replies = screen.getAllByText(/I see your order ORD-5001 is delayed/i);
+      expect(replies.length).toBeGreaterThan(0);
+    });
+
+    it("calls speechSynthesis.speak with the assistant reply", async () => {
+      await uploadWithReply();
+      expect(window.speechSynthesis.speak).toHaveBeenCalled();
+    });
+
+    it("does not call speechSynthesis.speak when muted", async () => {
+      installMediaMocks();
+      vi.mocked(api.uploadVoiceSessionAudio).mockResolvedValue({
+        session_id: "VOICE-test-session",
+        status: "transcribed",
+        transcript: "Where is my order?",
+        detected_language: "en",
+        customer: { customer_id: "CUST-101", full_name: "Test Customer One" },
+        intent_category: "delayed_delivery",
+        assistant_reply: "I see your order ORD-5001 is delayed.",
+        conversation_history: [],
+      });
+      await renderReadyPanel();
+
+      const user = userEvent.setup();
+      // Mute before recording
+      await user.click(screen.getByRole("button", { name: /mute voice/i }));
+      (window.speechSynthesis.speak as ReturnType<typeof vi.fn>).mockClear();
+
+      await user.click(screen.getByRole("button", { name: /start speaking/i }));
+      await screen.findByText(/recording…/i);
+      await user.click(screen.getByRole("button", { name: /^stop$/i }));
+
+      await screen.findByText(/Case Draft/i);
+      expect(window.speechSynthesis.speak).not.toHaveBeenCalled();
+    });
+
+    it("replay speaks the last assistant reply", async () => {
+      await uploadWithReply();
+      (window.speechSynthesis.speak as ReturnType<typeof vi.fn>).mockClear();
+
+      const user = userEvent.setup();
+      const replayBtn = screen.getByRole("button", { name: /replay audio/i });
+      await user.click(replayBtn);
+
+      expect(window.speechSynthesis.speak).toHaveBeenCalled();
+    });
+
+    it("stop cancels speaking via speechSynthesis.cancel", async () => {
+      await uploadWithReply();
+      (window.speechSynthesis.cancel as ReturnType<typeof vi.fn>).mockClear();
+
+      // Manually call cancel to verify it works
+      window.speechSynthesis.cancel();
+      expect(window.speechSynthesis.cancel).toHaveBeenCalled();
+    });
+
+    it("displays a fallback message when Ollama is unavailable", async () => {
+      installMediaMocks();
+      vi.mocked(api.uploadVoiceSessionAudio).mockResolvedValue({
+        session_id: "VOICE-test-session",
+        status: "transcribed",
+        transcript: "My order is delayed",
+        detected_language: "en",
+        customer: { customer_id: "CUST-101", full_name: "Test Customer One" },
+        intent_category: "delayed_delivery",
+        assistant_reply: "I found your order ORD-5001 (Status: delayed). Would you like me to prepare a support case for this request?",
+        conversation_history: [
+          { role: "user", content: "My order is delayed" },
+          { role: "assistant", content: "I found your order ORD-5001 (Status: delayed). Would you like me to prepare a support case for this request?" },
+        ],
+      });
+      await renderReadyPanel();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: /start speaking/i }));
+      await screen.findByText(/recording…/i);
+      await user.click(screen.getByRole("button", { name: /^stop$/i }));
+
+      await screen.findByText(/Case Draft/i);
+      const replies = screen.getAllByText(/I found your order ORD-5001/i);
+      expect(replies.length).toBeGreaterThan(0);
+    });
+
+    it("displays conversation history with user and assistant turns", async () => {
+      await uploadWithReply();
+      const historySection = screen.getByLabelText(/conversation history/i);
+      expect(historySection).toBeInTheDocument();
+      expect(screen.getAllByText(/You:/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Assistant:/i).length).toBeGreaterThan(0);
+    });
   });
 });

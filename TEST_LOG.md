@@ -184,3 +184,27 @@ Do not remove failed results after a fix. Add a later passing result.
 - Evidence: Vitest console output, Vite build output, pytest console output, health check ping response, git status command logs.
 - Issue: None
 - Next action: None (Phase 0 Complete)
+
+### Ollama Model Name Fix & Latency Optimization
+
+- Date: 7 August 2026
+- Commit or working-tree state: working tree
+- Task ID: Intent Classification & Latency Optimization
+- Feature: Local Ollama Intent Classification (`llama3.2:3b`) & Speech Variant Classification
+- Command or manual steps: `.venv\Scripts\python -m pytest backend\tests\`, `npm test -- --run`, `npm run build`, and `backend/live_verification.py`
+- Test data: "Where is my order?", "Where's my parcel?"
+- Expected: Model name resolves correctly to `llama3.2:3b`, no 404 error, both phrases resolve to `order_status`, system prompt factual safety preserved, all backend and frontend tests pass.
+- Actual:
+  - Fixed model name mismatch (`llama3.2:3b` installed vs `llama3.2` default).
+  - Raised timeout to 60.0s for CPU inference.
+  - Added speech pattern & contraction handling to `classify_transcript`.
+  - Optimized system prompt and payload parameters (`temperature=0`, `num_ctx=2048`, `num_predict=256`, `keep_alive="10m"`).
+  - 135 backend tests passed.
+  - 30 frontend tests passed.
+  - Frontend production build succeeded.
+  - Live Ollama inference verified: "Where is my order?" -> `order_status` (18.40s), "Where's my parcel?" -> `order_status` (20.00s).
+  - STT inference latency measured: 0.49s.
+- Status: `PASS`
+- Evidence: Pytest output, Vitest output, Vite build output, `live_verification.py` log.
+- Issue: CPU inference on 8 GB laptop takes 18-20s per Ollama call due to CPU compute constraints. Deterministic classifier provides 0s fallback when Ollama is offline/slow.
+- Next action: Ready for user review.

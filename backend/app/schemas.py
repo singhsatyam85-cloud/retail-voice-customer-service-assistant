@@ -126,6 +126,19 @@ class VoiceSessionStartResponse(BaseModel):
     created_at: datetime
 
 
+class ConversationTurnOut(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class OllamaStructuredResponse(BaseModel):
+    intent: str
+    reply: str
+    requires_order: bool = False
+    needs_clarification: bool = False
+    create_case: bool = False
+
+
 class VoiceSessionAudioResponse(BaseModel):
     session_id: str
     status: str
@@ -133,6 +146,11 @@ class VoiceSessionAudioResponse(BaseModel):
     detected_language: Optional[str]
     customer: CustomerOut
     intent_category: Optional[str] = None
+    assistant_reply: Optional[str] = None
+    conversation_history: list[ConversationTurnOut] = []
+    requires_order: bool = False
+    needs_clarification: bool = False
+    suggested_order_id: Optional[str] = None
 
 
 class CreateVoiceCaseRequest(CreateCaseRequest):

@@ -29,6 +29,11 @@ export interface VoiceSessionStart {
   created_at: string;
 }
 
+export interface ConversationTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface VoiceSessionAudioResult {
   session_id: string;
   status: string;
@@ -36,6 +41,11 @@ export interface VoiceSessionAudioResult {
   detected_language: string | null;
   customer: CustomerSummary;
   intent_category: string | null;
+  assistant_reply?: string | null;
+  conversation_history?: ConversationTurn[];
+  requires_order?: boolean;
+  needs_clarification?: boolean;
+  suggested_order_id?: string | null;
 }
 
 export class VoiceSupportApiError extends Error {

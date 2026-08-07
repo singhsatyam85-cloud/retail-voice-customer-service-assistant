@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     # voice-support endpoints read an Authorization header.
     cors_allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
+    # Ollama LLM provider config (local conversation)
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.2:3b"
+    ollama_timeout: float = 60.0
+
     @property
     def cors_allowed_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]

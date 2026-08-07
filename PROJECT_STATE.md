@@ -13,11 +13,10 @@ Last updated: 6 August 2026
 
 ## Latest verified test result
 
-- Backend: `84 passed, 1 warning`
-- Command: `.venv\Scripts\python -m pytest`
-
-This confirms the backend automated suite passed at commit `ecde417`.
-It does not confirm a manual browser and microphone journey.
+- Backend: `135 passed, 1 warning` (`.venv\Scripts\python -m pytest backend\tests\`)
+- Frontend: `30 passed` (`npm test -- --run`)
+- Frontend Build: `passed` (`npm run build`)
+- Local Ollama: Verified with installed `llama3.2:3b` model (intent classification and prompt optimization confirmed).
 
 ## Existing product direction
 

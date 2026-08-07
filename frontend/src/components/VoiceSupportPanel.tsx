@@ -7,6 +7,7 @@ import {
   createVoiceSupportCase,
   type RecentOrder,
   type SupportCase,
+  type ConversationTurn,
 } from "../services/voiceSupportApi";
 import { VoiceOrbDNA } from "./VoiceOrbDNA";
 import "./VoiceSupportPanel.css";
@@ -45,6 +46,8 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<string | null>(null);
   const [intentCategory, setIntentCategory] = useState<string | null>(null);
+  const [assistantReply, setAssistantReply] = useState<string | null>(null);
+  const [conversationHistory, setConversationHistory] = useState<ConversationTurn[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorContext, setErrorContext] = useState<ErrorContext>(null);
@@ -54,9 +57,61 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [retryToken, setRetryToken] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const recorder = useVoiceRecorder();
   const timerRef = useRef<number | null>(null);
+
+  // SpeechSynthesis helpers
+  function speakText(text: string) {
+    if (typeof window === "undefined" || !("speechSynthesis" in window) || isMuted || !text) {
+      return;
+    }
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      setIsSpeaking(false);
+    }
+  }
+
+  function handleReplaySpeech() {
+    if (assistantReply) {
+      speakText(assistantReply);
+    }
+  }
+
+  function handleStopSpeech() {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+  }
+
+  function handleToggleMute() {
+    setIsMuted((prev) => {
+      const next = !prev;
+      if (next && typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        setIsSpeaking(false);
+      }
+      return next;
+    });
+  }
+
+  // Cleanup speech on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   // Start (or restart, on retry) the voice-support session.
   useEffect(() => {
@@ -73,6 +128,8 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
         setSessionId(session.session_id);
         setTranscript(null);
         setIntentCategory(null);
+        setAssistantReply(null);
+        setConversationHistory([]);
         setSelectedOrderId(null);
         setIdempotencyKey(null);
         setSubmissionError(null);
@@ -128,6 +185,7 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
   }, []);
 
   async function handleStartSpeaking() {
+    handleStopSpeech();
     setErrorMessage(null);
     setPhase("requesting-microphone");
     await recorder.startRecording();
@@ -149,15 +207,27 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
       const result = await uploadVoiceSessionAudio(sessionId, blob);
       setTranscript(result.transcript);
       setIntentCategory(result.intent_category);
-      if (recentOrders.length === 1 && result.intent_category !== "needs_clarification") {
+      setAssistantReply(result.assistant_reply || null);
+      if (result.conversation_history) {
+        setConversationHistory(result.conversation_history);
+      }
+
+      if (result.suggested_order_id && result.intent_category !== "needs_clarification") {
+        setSelectedOrderId(result.suggested_order_id);
+      } else if (recentOrders.length === 1 && result.intent_category !== "needs_clarification") {
         setSelectedOrderId(recentOrders[0].order_id);
       } else {
         setSelectedOrderId(null);
       }
+
       if (result.intent_category !== "needs_clarification") {
         setIdempotencyKey(self.crypto.randomUUID());
       }
       setPhase("transcribed");
+
+      if (result.assistant_reply && !isMuted) {
+        speakText(result.assistant_reply);
+      }
     } catch (error) {
       setErrorMessage(describeError(error));
       setErrorContext("upload");
@@ -166,8 +236,10 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
   }
 
   function handleRecordAgain() {
+    handleStopSpeech();
     setTranscript(null);
     setIntentCategory(null);
+    setAssistantReply(null);
     setSelectedOrderId(null);
     setIdempotencyKey(null);
     setSubmissionError(null);
@@ -179,6 +251,7 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
   async function handleConfirmCase() {
     if (!sessionId || !intentCategory || !idempotencyKey) return;
 
+    handleStopSpeech();
     const isHumanAgent = intentCategory === "human_agent_request";
     const orderId = selectedOrderId === "none" ? null : selectedOrderId;
 
@@ -194,7 +267,7 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
       const caseResult = await createVoiceSupportCase(sessionId, {
         category: intentCategory,
         order_id: orderId,
-        summary: transcript || "",
+        summary: transcript || assistantReply || "",
         idempotency_key: idempotencyKey,
       });
       setCreatedCase(caseResult);
@@ -207,6 +280,7 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
   }
 
   function handleRetry() {
+    handleStopSpeech();
     setErrorMessage(null);
     if (errorContext === "session") {
       setRetryToken((token) => token + 1);
@@ -221,9 +295,9 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
   let orbState: "idle" | "listening" | "speaking" | "processing" = "idle";
   if (phase === "recording") {
     orbState = "listening";
-  } else if (phase === "uploading" || phase === "stopping" || phase === "submitting") {
+  } else if (phase === "uploading" || phase === "stopping" || phase === "submitting" || phase === "requesting-microphone") {
     orbState = "processing";
-  } else if (phase === "transcribed" || phase === "submitted") {
+  } else if (isSpeaking || phase === "transcribed" || phase === "submitted") {
     orbState = "speaking";
   }
 
@@ -235,7 +309,10 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
           type="button"
           className="voice-support-panel__close"
           aria-label="Close AI Voice Support"
-          onClick={onClose}
+          onClick={() => {
+            handleStopSpeech();
+            onClose();
+          }}
         >
           Close
         </button>
@@ -246,11 +323,41 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
 
         {showOrders && <VoiceOrbDNA state={orbState} />}
 
+        {showOrders && (
+          <div className="voice-support-panel__audio-controls">
+            <button type="button" onClick={handleToggleMute}>
+              {isMuted ? "Unmute Voice" : "Mute Voice"}
+            </button>
+            {assistantReply && (
+              <>
+                <button type="button" onClick={handleReplaySpeech} disabled={isSpeaking}>
+                  Replay Audio
+                </button>
+                {isSpeaking && (
+                  <button type="button" onClick={handleStopSpeech}>
+                    Stop Audio
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         {showOrders && firstName && (
           <p className="voice-support-panel__greeting">Hi {firstName}, how can we help?</p>
         )}
 
-        {showOrders && recentOrders.length > 0 && (
+        {showOrders && conversationHistory.length > 0 && (
+          <div className="voice-support-panel__history" aria-label="Conversation History">
+            {conversationHistory.map((turn, i) => (
+              <div key={i} className={`voice-support-panel__turn voice-support-panel__turn--${turn.role}`}>
+                <strong>{turn.role === "user" ? "You" : "Assistant"}:</strong> {turn.content}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {showOrders && recentOrders.length > 0 && conversationHistory.length === 0 && (
           <ul className="voice-support-panel__orders">
             {recentOrders.map((order) => (
               <li key={order.order_id}>
@@ -260,7 +367,7 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
           </ul>
         )}
 
-        {showOrders && recentOrders.length === 0 && (
+        {showOrders && recentOrders.length === 0 && conversationHistory.length === 0 && (
           <p className="voice-support-panel__no-orders">You have no recent orders.</p>
         )}
 
@@ -288,11 +395,17 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
         )}
 
         {phase === "stopping" && <p role="status">Stopping recording…</p>}
-        {phase === "uploading" && <p role="status">Uploading your recording…</p>}
+        {phase === "uploading" && <p role="status">Processing conversation with local AI…</p>}
 
         {phase === "transcribed" && (
           <div className="voice-support-panel__transcript">
-            <h3>Transcript</h3>
+            {assistantReply && (
+              <div className="voice-support-panel__reply">
+                <strong>Assistant:</strong> {assistantReply}
+              </div>
+            )}
+
+            <h3>Your Input</h3>
             <p>{transcript}</p>
 
             {intentCategory === "needs_clarification" ? (
@@ -367,7 +480,14 @@ export function VoiceSupportPanel({ onClose }: VoiceSupportPanelProps) {
             <p className="voice-support-panel__notice">
               <em>Note: Returns, refunds, and cancellations are subject to human review.</em>
             </p>
-            <button type="button" className="voice-support-panel__action" onClick={onClose}>
+            <button
+              type="button"
+              className="voice-support-panel__action"
+              onClick={() => {
+                handleStopSpeech();
+                onClose();
+              }}
+            >
               Close
             </button>
           </div>
