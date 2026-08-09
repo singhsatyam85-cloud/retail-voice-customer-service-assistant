@@ -1,7 +1,7 @@
 """Application configuration, sourced from environment variables.
 
-Keeps speech-provider and CORS choices out of route/service logic so they
-can be changed per environment without editing code.
+Keeps speech-provider, CORS, and environment choices out of route/service
+logic so they can be changed per environment without editing code.
 """
 
 from __future__ import annotations
@@ -13,6 +13,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(case_sensitive=False)
+
+    # Demo authentication is permitted only in development/test environments.
+    # Any other value fails closed in the demo-auth dependency.
+    app_environment: str = "development"
 
     # "mock" (default, used by automated tests) or "faster_whisper"
     # (local CPU transcription -- see docs/04-in-app-voice-support-foundation.md).
