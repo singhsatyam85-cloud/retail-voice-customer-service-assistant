@@ -16,9 +16,10 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
+from backend.app.config import get_settings
 from backend.app.database import get_db
 from backend.app.models import Customer
 
@@ -30,6 +31,8 @@ DEMO_TOKEN_TO_CUSTOMER_ID = {
     "demo-cust-103": "CUST-103",
 }
 
+DEMO_AUTH_ALLOWED_ENVIRONMENTS = {"development", "test"}
+
 
 def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
     if authorization is None:
@@ -40,15 +43,26 @@ def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
     return token
 
 
+def _ensure_demo_auth_allowed() -> None:
+    environment = get_settings().app_environment.strip().lower()
+    if environment not in DEMO_AUTH_ALLOWED_ENVIRONMENTS:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Demo authentication is unavailable in this environment.",
+        )
+
+
 def get_authenticated_customer(
     authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ) -> Customer:
-    """FastAPI dependency resolving the caller's Customer from a demo token.
+    """Resolve the caller from a fictional demo token in safe environments only.
 
     Never accept a customer_id from the request body -- identity must
     only ever come from this dependency.
     """
+    _ensure_demo_auth_allowed()
+
     token = _extract_bearer_token(authorization)
     if token is None:
         raise HTTPException(status_code=401, detail="Missing or malformed Authorization header.")
